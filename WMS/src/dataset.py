@@ -1,37 +1,32 @@
-import os
-import torch
-from PIL import Image
-from torch.utils.data import Dataset
-import torchvision.transforms as transforms
+
+from torch.utils.data import Dataset # All PyTorch datasets must inherit from this base dataset class
+import cv2
 
 """ 
-os.listdir - return a list containing the names of the files in the directory
-os.path.join - a full path by concatenating various components while automatically inserting the appropriate path separator
+
 """
 
 class WMSDataset(Dataset):
-    def __init__(self, transformImage=None, transformMask=None):
-        self.image_dir = r"D:\Github\Water-Meters-Segmentation\WMS\data\images"
-        self.mask_dir = r"D:\Github\Water-Meters-Segmentation\WMS\data\masks"
-        self.imageNames = os.listdir(self.image_dir)
-        self.maskNames = os.listdir(self.mask_dir)
-        self.transformImage = transformImage
-        self.transformMask = transformMask
+    def __init__(self, imagePaths, maskPaths, transforms):
+        self.imagePaths = imagePaths
+        self.maskPaths = maskPaths
+        self.transforms = transforms
 
     def __len__(self):
-        return len(os.listdir(self.image_dir))
+        return len(self.imagePaths)
 
     def __getitem__(self, i):
-        image_path = os.path.join(self.image_dir, self.imageNames[i])
-        mask_path = os.path.join(self.mask_dir, self.maskNames[i])
+        image_path = self.imagePaths[i] #Grab the image path form the current index
+        image = cv2.imread(image_path) # Load image
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) # Swap channels from BGR to RGB
 
-        image = Image.open(image_path).convert("RGB")
-        mask = Image.open(mask_path).convert("L")
+        mask_path = self.maskPaths[i]
+        mask = cv2.imread(mask_path, 0) # 0 - greyscale
 
-        if self.transformImage:
-            image = self.transformImage(image)
-        if self.transformMask:
-            mask = self.transformMask(mask)
+        # Normalization
+        if self.transforms is not None:
+            image = self.transforms(image)
+            mask = self.transforms(mask)
 
         return image, mask
 
