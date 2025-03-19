@@ -1,0 +1,37 @@
+from torch.nn import ConvTranspose2d
+from torch.nn import Conv2d
+from torch.nn import MaxPool2d
+from torch.nn import Module
+from torch.nn import ModuleList
+from torch.nn import ReLU
+from torchvision.transforms import CenterCrop
+from torch.nn import functional as F
+import torch
+
+class Block(Module):
+    def __init__(self, inChannels, outChannels):
+        super().__init__()
+        self.conv1 = Conv2d(inChannels, outChannels, 3)
+        self.relu1 = ReLU()
+        self.conv2 = Conv2d(outChannels, outChannels, 3)
+
+    def forward(self, x):
+        return self.conv2(self.relu1(self.conv1(x)))
+
+class Encoder(Module):
+    def __init__(self, channels=(3, 16, 32, 64)):
+        super().__init__()
+        self.encBlocks = ModuleList(
+            [Block(channels[i], channels[i+1])
+             for i in range(len(channels-1))])
+        self.pool = MaxPool2d(2)
+
+    def forward(self, x):
+        blockOutputs = []
+        for encBlock in self.encBlocks:
+            x = encBlock(x)
+            blockOutputs.append(x)
+            x = self.pool(x)
+
+        return blockOutputs
+
