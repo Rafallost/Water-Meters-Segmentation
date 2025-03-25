@@ -56,3 +56,16 @@ class Decoder(Module):
 		(_, _, H, W) = x.shape
 		encFeatures = CenterCrop([H, W])(encFeatures)
 		return encFeatures
+
+
+class UNet(Module):
+	def __init__(self, encChannels=(3, 16, 32, 64),
+		 decChannels=(64, 32, 16),
+		 nbClasses=1, retainDim=True,
+		 outSize=(128,  128)):
+		super().__init__()
+		self.encoder = Encoder(encChannels)
+		self.decoder = Decoder(decChannels)
+		self.head = Conv2d(decChannels[-1], nbClasses, 1)
+		self.retainDim = retainDim
+		self.outSize = outSize
