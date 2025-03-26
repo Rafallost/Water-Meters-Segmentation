@@ -69,3 +69,13 @@ class UNet(Module):
 		self.head = Conv2d(decChannels[-1], nbClasses, 1)
 		self.retainDim = retainDim
 		self.outSize = outSize
+
+	def forward(self, x):
+		forwardedX = self.encoder(x)
+		decFeatures = self.decoder(forwardedX[::-1][0], forwardedX[::-1][1:])
+		map = self.head(decFeatures)
+
+		if self.retainDim:
+			map = F.interpolate(map, size=self.outSize)
+
+		return map
