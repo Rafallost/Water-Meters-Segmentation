@@ -6,15 +6,16 @@ from torch.utils.data import DataLoader
 from dataset import WMSDataset
 from transforms import imageTransforms, maskTransforms
 
-# Ścieżka do bieżącego pliku
-script_dir = os.path.dirname(os.path.abspath(__file__))
+DATASET_PATH  = os.path.dirname(os.path.abspath(__file__))
+IMAGE_DATASET_PATH  = os.path.join(DATASET_PATH , '..', 'data', 'images')
+MASK_DATASET_PATH   = os.path.join(DATASET_PATH , '..', 'data', 'masks')
 
-image_dir = os.path.join(script_dir, '..', 'data', 'images')
-mask_dir  = os.path.join(script_dir, '..', 'data', 'masks')
+# determine the device to be used for training and evaluation
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Pobieramy listę plików
-imagePaths = [os.path.join(image_dir, f) for f in os.listdir(image_dir)]
-maskPaths = [os.path.join(mask_dir, f) for f in os.listdir(mask_dir)]
+imagePaths = [os.path.join(IMAGE_DATASET_PATH , f) for f in os.listdir(IMAGE_DATASET_PATH )]
+maskPaths = [os.path.join(MASK_DATASET_PATH , f) for f in os.listdir(MASK_DATASET_PATH )]
 
 dataset = WMSDataset(imagePaths, maskPaths, imageTransforms, maskTransforms)
 
