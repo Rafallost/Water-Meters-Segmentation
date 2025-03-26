@@ -6,9 +6,13 @@ from torch.utils.data import DataLoader
 from dataset import WMSDataset
 from transforms import imageTransforms, maskTransforms
 
-image_dir = r"D:\Github\Water-Meters-Segmentation\WMS\data\images"
-mask_dir = r"D:\Github\Water-Meters-Segmentation\WMS\data\masks"
+# Ścieżka do bieżącego pliku
+script_dir = os.path.dirname(os.path.abspath(__file__))
 
+image_dir = os.path.join(script_dir, '..', 'data', 'images')
+mask_dir  = os.path.join(script_dir, '..', 'data', 'masks')
+
+# Pobieramy listę plików
 imagePaths = [os.path.join(image_dir, f) for f in os.listdir(image_dir)]
 maskPaths = [os.path.join(mask_dir, f) for f in os.listdir(mask_dir)]
 
@@ -35,6 +39,7 @@ for i in range(5):
 print(f"PyTorch version: {torch.__version__}")
 print(f"Torchvision version: {torchvision.__version__}")
 print(f"GPU available: {torch.cuda.is_available()}")
+print(f"cuda version: {torch.version.cuda}")
 
 plt.show()
 
