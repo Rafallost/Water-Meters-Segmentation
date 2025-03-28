@@ -42,5 +42,5 @@ print(f"Torchvision version: {torchvision.__version__}")
 print(f"GPU available: {torch.cuda.is_available()}")
 print(f"cuda version: {torch.version.cuda}")
 
-plt.show()
+#plt.show()
 

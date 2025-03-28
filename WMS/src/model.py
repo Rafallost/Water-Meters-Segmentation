@@ -23,7 +23,7 @@ class Encoder(Module):
         super().__init__()
         self.encBlocks = ModuleList(
             [Block(channels[i], channels[i+1])
-             for i in range(len(channels-1))])
+             for i in range(len(channels) - 1)])
         self.pool = MaxPool2d(2)
 
     def forward(self, x):

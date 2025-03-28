@@ -3,6 +3,7 @@ import random
 
 import torch
 from scipy.ndimage import value_indices
+from torch import nn, optim
 from torch.utils.data import DataLoader
 
 from WMS.src.model import UNet
@@ -52,5 +53,46 @@ print(f"Train samples: {len(trainDataset)}")
 print(f"Validate samples:   {len(valDataset)}")
 print(f"Test samples:  {len(testDataset)}")
 
+# Turn on cuda if possible
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+# Create model
+model = UNet(nbClasses=1, outSize=(256,256))
+model.to(device)
 
+# Cost function and optimizer
+criterion = nn.BCEWithLogitsLoss()
+optimizer = optim.Adam(model.parameters(), lr=1e-4)
+
+numEpochs = 25
+
+for epoch in range(numEpochs):
+    model.train()
+    runningLoss = 0.0
+
+    for images, masks in trainLoader:
+        images = images.to(device)
+        masks = masks.to(device)
+        optimizer.zero_grad()
+        outputs = model(images)
+        loss = criterion(outputs, masks)
+        loss.backward()
+        optimizer.step()
+        runningLoss += loss.item()
+
+    avgTrainLoss = runningLoss / len(trainLoader)
+
+    model.eval()
+    runningLoss = 0.0
+    with torch.no_grad():
+        for images, masks in valLoader:
+            images = images.to(device)
+            masks = masks.to(device)
+            outputs = model(images)
+            loss = criterion(outputs, masks)
+            runningLoss += loss.item()
+
+    avgValLoss = runningLoss / len(valLoader)
+    print(f"Epoch {epoch + 1}/{numEpochs} - Train Loss: {avgTrainLoss:.4f} - Val Loss: {avgValLoss:.4f}")
+
+    torch.save(model.state_dict(), "../models/unet_trained.pth")
