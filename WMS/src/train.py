@@ -45,9 +45,9 @@ valDataset = WMSDataset(valImagePaths, valMaskPaths, imageTransforms, maskTransf
 testDataset = WMSDataset(testImagePaths, testMaskPaths, imageTransforms, maskTransforms)
 
 # Creating dataloaders for each object
-trainLoader = DataLoader(trainDataset, batch_size=8, shuffle=True)
-valLoader = DataLoader(valDataset, batch_size=8, shuffle=False)
-testLoader = DataLoader(testDataset, batch_size=8, shuffle=False)
+trainLoader = DataLoader(trainDataset, batch_size=4, shuffle=True)
+valLoader = DataLoader(valDataset, batch_size=4, shuffle=False)
+testLoader = DataLoader(testDataset, batch_size=4, shuffle=False)
 
 print(f"Train samples: {len(trainDataset)}")
 print(f"Validate samples:   {len(valDataset)}")
@@ -62,7 +62,7 @@ model.to(device)
 
 # Cost function and optimizer
 criterion = nn.BCEWithLogitsLoss()
-optimizer = optim.Adam(model.parameters(), lr=1e-4)
+optimizer = optim.Adam(model.parameters(), lr=5e-5)
 
 numEpochs = 25
 
