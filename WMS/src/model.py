@@ -12,7 +12,7 @@ class Block(Module):
     def __init__(self, inChannels, outChannels):
         super().__init__()
         self.conv1 = Conv2d(inChannels, outChannels, 3)
-        self.relu1 = ReLU()
+        self.relu1 = ReLU() # Activation function
         self.conv2 = Conv2d(outChannels, outChannels, 3)
 
     def forward(self, x):
@@ -62,7 +62,7 @@ class UNet(Module):
 	def __init__(self, encChannels=(3, 16, 32, 64),
 		 decChannels=(64, 32, 16),
 		 nbClasses=1, retainDim=True,
-		 outSize=(128,  128)):
+		 outSize=(512,  512)):
 		super().__init__()
 		self.encoder = Encoder(encChannels)
 		self.decoder = Decoder(decChannels)
