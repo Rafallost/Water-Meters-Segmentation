@@ -74,23 +74,23 @@ def count_pixel_balance(mask_paths, dataset_name):
     for mask_path in mask_paths:
         mask = cv2.imread(mask_path, 0)  # Wczytujemy maskę jako grayscale
         if mask is None:
-            print(f"Warning: Nie udało się wczytać {mask_path}")
+            print(f"Warning: Could not load {mask_path}")
             continue
         unique, cnts = np.unique(mask, return_counts=True)
         for cls, count in zip(unique, cnts):
             counts[cls] += count
-    print(f"\nRozkład pikseli dla zbioru {dataset_name}:")
+    print(f"\nPixel distribution for the set {dataset_name}:")
     for cls, count in sorted(counts.items()):
-        print(f"Klasa {cls}: {count} pikseli")
+        print(f"Class {cls}: {count} pixels")
 
     # Wykres słupkowy dla wizualizacji
     classes = sorted(counts.keys())
     values = [counts[c] for c in classes]
     plt.figure(figsize=(8, 6))
     plt.bar([str(c) for c in classes], values)
-    plt.xlabel("Klasa")
-    plt.ylabel("Liczba pikseli")
-    plt.title(f"Rozkład pikseli dla zbioru {dataset_name}")
+    plt.xlabel("Class")
+    plt.ylabel("number of pixels")
+    plt.title(f"Pixel distribution for the set: {dataset_name}")
     plt.show()
 
 
