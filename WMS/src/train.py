@@ -2,7 +2,6 @@ import os
 import random
 
 import torch
-from scipy.ndimage import value_indices
 from torch import nn, optim
 from torch.utils.data import DataLoader
 
@@ -57,7 +56,7 @@ print(f"Test samples:  {len(testDataset)}")
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Create model
-model = UNet(nbClasses=1, outSize=(256,256))
+model = UNet(nbClasses=1, outSize=(512,512))
 model.to(device)
 
 # Cost function and optimizer

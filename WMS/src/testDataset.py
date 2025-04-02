@@ -12,6 +12,8 @@ MASK_DATASET_PATH   = os.path.join(DATASET_PATH , '..', 'data', 'masks')
 
 # determine the device to be used for training and evaluation
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+# determine if we will be pinning memory during data loading
+PIN_MEMORY = True if DEVICE == "cuda" else False
 
 # Pobieramy listę plików
 imagePaths = [os.path.join(IMAGE_DATASET_PATH , f) for f in os.listdir(IMAGE_DATASET_PATH )]
@@ -42,5 +44,5 @@ print(f"Torchvision version: {torchvision.__version__}")
 print(f"GPU available: {torch.cuda.is_available()}")
 print(f"cuda version: {torch.version.cuda}")
 
-#plt.show()
+plt.show()
 
