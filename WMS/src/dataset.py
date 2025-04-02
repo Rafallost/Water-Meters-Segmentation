@@ -18,6 +18,8 @@ class WMSDataset(Dataset):
 
         mask_path = self.maskPaths[i]
         mask = cv2.imread(mask_path, 0) # 0 - greyscale
+        mask[mask < 127] = 0
+        mask[mask > 127] = 1
 
         if self.imageTransforms:
             image = self.imageTransforms(image)
