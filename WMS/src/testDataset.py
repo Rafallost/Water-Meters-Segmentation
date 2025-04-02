@@ -69,77 +69,6 @@ dataLoader = DataLoader(trainDataset, batch_size=5, shuffle=True)
 images, masks = next(iter(dataLoader))
 
 ############### DATA VERIFICATION ###############
-import os
-import shutil
-import random
-from collections import defaultdict
-
-import cv2
-import numpy as np
-from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
-import torch
-import torchvision
-from torch.utils.data import DataLoader
-from dataset import WMSDataset
-from transforms import imageTransforms, maskTransforms
-
-############### DATA LOAD ###############
-random.seed(42)
-
-# Source data directories
-datasetPath = os.path.dirname(os.path.abspath(__file__))
-sourceImageDir = os.path.join(datasetPath, '..', 'data', 'images')
-sourceMaskDir  = os.path.join(datasetPath, '..', 'data', 'masks')
-
-# Get images and masks names
-imageFiles = sorted([f for f in os.listdir(sourceImageDir) if f.endswith('.jpg')])
-maskFiles = sorted([f for f in os.listdir(sourceMaskDir) if f.endswith('.jpg')])
-assert len(imageFiles) == len(maskFiles), "Amount of images and masks have to be the same"
-
-# 80% train, 10% val, 10% test
-trainImgs, tempImgs = train_test_split(imageFiles, test_size=0.2, random_state=42)
-valImgs, testImgs = train_test_split(tempImgs, test_size=0.5, random_state=42)
-
-splits = {'train': trainImgs, 'val': valImgs, 'test': testImgs}
-
-# Ścieżka bazowa dla nowej struktury danych (docelowej)
-baseDataDir = os.path.join(datasetPath, '..', 'data')
-for split, files in splits.items():
-    for subfolder in ['images', 'masks']:
-        os.makedirs(os.path.join(baseDataDir, split, subfolder), exist_ok=True)
-    for fname in files:
-        shutil.copy(os.path.join(sourceImageDir, fname), os.path.join(baseDataDir, split, 'images', fname))
-        shutil.copy(os.path.join(sourceMaskDir, fname), os.path.join(baseDataDir, split, 'masks', fname))
-
-# Load data from folder 'train'
-trainImagePaths = [os.path.join(baseDataDir, 'train', 'images', f)
-                   for f in os.listdir(os.path.join(baseDataDir, 'train', 'images')) if f.endswith('.jpg')]
-trainMaskPaths  = [os.path.join(baseDataDir, 'train', 'masks', f)
-                   for f in os.listdir(os.path.join(baseDataDir, 'train', 'masks')) if f.endswith('.jpg')]
-
-testImagePaths = [os.path.join(baseDataDir, 'test', 'images', f)
-                   for f in os.listdir(os.path.join(baseDataDir, 'test', 'images')) if f.endswith('.jpg')]
-testMaskPaths  = [os.path.join(baseDataDir, 'test', 'masks', f)
-                   for f in os.listdir(os.path.join(baseDataDir, 'test', 'masks')) if f.endswith('.jpg')]
-
-valImagePaths = [os.path.join(baseDataDir, 'val', 'images', f)
-                   for f in os.listdir(os.path.join(baseDataDir, 'val', 'images')) if f.endswith('.jpg')]
-valMaskPaths  = [os.path.join(baseDataDir, 'val', 'masks', f)
-                   for f in os.listdir(os.path.join(baseDataDir, 'val', 'masks')) if f.endswith('.jpg')]
-
-trainDataset = WMSDataset(trainImagePaths, trainMaskPaths, imageTransforms, maskTransforms)
-testDataset = WMSDataset(testImagePaths, trainMaskPaths, imageTransforms, maskTransforms)
-valDataset = WMSDataset(valImagePaths, trainMaskPaths, imageTransforms, maskTransforms)
-
-print(f"trainDataset length(train part): {len(trainDataset)}")
-print(f"testDataset length(train part): {len(testDataset)}")
-print(f"valDataset length(train part): {len(valDataset)}")
-
-dataLoader = DataLoader(trainDataset, batch_size=5, shuffle=True)
-images, masks = next(iter(dataLoader))
-
-############### DATA VERIFICATION ###############
 def count_pixel_balance(mask_paths, dataset_name):
     counts = defaultdict(int)
     for mask_path in mask_paths:
@@ -169,6 +98,7 @@ def count_pixel_balance(mask_paths, dataset_name):
 count_pixel_balance(trainMaskPaths, "Train")
 count_pixel_balance(valMaskPaths, "Validation")
 count_pixel_balance(testMaskPaths, "Test")
+
 ############### DEVICE CONFIGURATION ###############
 # determine the device to be used for training and evaluation
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -200,7 +130,7 @@ for i in range(5):
     axs[i, 1].axis("off")
 
 
-print(f"PyTorch version: {torch.__version__}")
+print(f"\nPyTorch version: {torch.__version__}")
 print(f"Torchvision version: {torchvision.__version__}")
 print(f"GPU available: {torch.cuda.is_available()}")
 print(f"cuda version: {torch.version.cuda}")
