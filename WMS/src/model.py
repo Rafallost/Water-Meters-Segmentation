@@ -6,7 +6,7 @@ class WaterMetersUNet(nn.Module):
     def __init__(self, inChannels, baseFilters=16, outChannels=1):
         super(WaterMetersUNet, self).__init__()
 
-        # ENCODER
+        # ======================================= ENCODER =============================================
         self.enc1 = nn.Sequential(
             nn.Conv2d(inChannels, baseFilters, kernel_size=3, padding=1), # inChannels -> baseChannels (3 -> 16)
             nn.BatchNorm2d(baseFilters),
@@ -38,7 +38,7 @@ class WaterMetersUNet(nn.Module):
         )
 
 
-        # DECODER (Rebuilding resolution (upsampling))
+        # ==================== DECODER (Rebuilding resolution (upsampling)) ======================
         self.dec3 = nn.Sequential( # bottleneck + enc3 -> (128 + 64 = 192 [channels])
             nn.Conv2d(baseFilters * 8 + baseFilters * 4 ,baseFilters * 4, kernel_size=3, padding=1), # 192 -> 64
             nn.BatchNorm2d(baseFilters * 4),
@@ -60,3 +60,30 @@ class WaterMetersUNet(nn.Module):
         # Last layer 1x1 16 -> outChannels (1)
         self.final = nn.Conv2d(baseFilters, outChannels, kernel_size=1)
 
+
+    def forward(self, x):
+        e1 = self.enc1(x)       # (N, baseFilters, H, W)
+        p1 = self.pool1(e1)     # (N, baseFilters, H/2, W/2)
+
+        e2 = self.enc2(p1)      # (N, baseFilters*2, H/2, W/2)
+        p2 = self.pool2(e2)     # (N, baseFilters*2, H/4, W/4)
+
+        e3 = self.enc3(p2)      # (N, baseFilters*4, H/4, W/4)
+        p3 = self.pool3(e3)     # (N, baseFilters*4, H/8, W/8)
+
+        b=self.bottleneck(p3)   # (N, baseFilters*8, H/8, W/8)
+
+        d3 = F.interpolate(b, size=e3.shape[2:], mode='bilinear', align_corners=False)
+        d3 = torch.cat((d3, e3), dim=1)
+        d3 = self.dec3(d3)                                                                  # (N, baseFilters*4, H/4, W/4)
+
+        d2 = F.interpolate(d3, size=e2.shape[2:], mode='bilinear', align_corners=False)
+        d2 = torch.cat((d2, e2), dim=1)
+        d2 = self.dec2(d2)                                                                  # (N, baseFilters*2, H/2, W/2)
+
+        d1 = F.interpolate(d2, size=e1.shape[2:], mode='bilinear', align_corners=False)
+        d1 = torch.cat((d1, e1), dim=1)
+        d1 = self.dec1(d1)                                                                  # (N, baseFilters, H, W)
+
+        out = self.final(d1) # (N, out_channels, H, W)
+        return out
