@@ -1,82 +1,39 @@
-from torch.nn import ConvTranspose2d
-from torch.nn import Conv2d
-from torch.nn import MaxPool2d
-from torch.nn import Module
-from torch.nn import ModuleList
-from torch.nn import ReLU
-from torchvision.transforms import CenterCrop
-from torch.nn import functional as F
 import torch
+import torch.nn as nn # Conv2d, BatchNorm2d etc.
+import torch.nn.functional as F # interpolate
 
-class Block(Module):
-    def __init__(self, inChannels, outChannels):
-        super().__init__()
-        # H_out = H_in - 3 + 1 = H_in - 2
-        self.conv1 = Conv2d(inChannels, outChannels, 3)
-        self.relu1 = ReLU() # Activation function, returns 0 or x
-        self.conv2 = Conv2d(outChannels, outChannels, 3)
+class WaterMetersUNet(nn.Module):
+    def __init__(self, inChannels, baseFilters=16, outChannels=1):
+        super(WaterMetersUNet, self).__init__()
 
-    def forward(self, x):
-        return self.conv2(self.relu1(self.conv1(x)))
-
-class Encoder(Module):
-    def __init__(self, channels=(3, 16, 32, 64)):
-        super().__init__()
-        self.encBlocks = ModuleList(
-            [Block(channels[i], channels[i+1])
-             for i in range(len(channels) - 1)])
-        self.pool = MaxPool2d(2) # H_out = H_in // 2
-
-    def forward(self, x):
-        blockOutputs = []
-        for encBlock in self.encBlocks:
-            x = encBlock(x)
-            blockOutputs.append(x)
-            x = self.pool(x)
-
-        return blockOutputs
-
-class Decoder(Module):
-    def __init__(self, channels=(64, 32, 16)):
-        super().__init__()
-        self.channels = channels
-        self.upconvs = ModuleList(
-            [ConvTranspose2d(channels[i], channels[i + 1], 2, 2)
-                for i in range(len(channels) - 1)])
-        self.dec_blocks = ModuleList(
-            [Block(channels[i], channels[i + 1])
-                for i in range(len(channels) - 1)])
-    def forward(self, x, encFeatures):
-        for i in range(len(self.channels) - 1):
-            x = self.upconvs[i](x)
-            encFeat = self.crop(encFeatures[i], x)
-            x = torch.cat([x, encFeat], dim=1)
-            x = self.dec_blocks[i](x)
-        return x
-    def crop(self, encFeatures, x):
-        (_, _, H, W) = x.shape
-        encFeatures = CenterCrop([H, W])(encFeatures)
-        return encFeatures
+        # ENCODER
+        self.enc1 = nn.Sequential(
+            nn.Conv2d(inChannels, baseFilters, kernel_size=3, padding=1),
+            nn.BatchNorm2d(baseFilters),
+            nn.ReLU(inplace=True)
+        )
+        self.pool1 = nn.MaxPool2d(2, stride=2) # Resize h, w by half (e.g. 512->256)
 
 
-class UNet(Module):
-    def __init__(self, encChannels=(3, 16, 32, 64),
-         decChannels=(64, 32, 16),
-         nbClasses=1, retainDim=True,
-         outSize=(512,  512)):
-        super().__init__()
-        self.encoder = Encoder(encChannels)
-        self.decoder = Decoder(decChannels)
-        self.head = Conv2d(decChannels[-1], nbClasses, 1)
-        self.retainDim = retainDim
-        self.outSize = outSize
+        self.enc2 = nn.Sequential(
+            nn.Conv2d(baseFilters, baseFilters * 2, kernel_size=3, padding=1),
+            nn.BatchNorm2d(baseFilters * 2),
+            nn.ReLU(inplace=True)
+        )
+        self.pool2 = nn.MaxPool2d(2, stride=2)
 
-    def forward(self, x):
-        forwardedX = self.encoder(x)
-        decFeatures = self.decoder(forwardedX[::-1][0], forwardedX[::-1][1:])
-        map = self.head(decFeatures)
 
-        if self.retainDim:
-            map = F.interpolate(map, size=self.outSize)
+        self.enc3 = nn.Sequential(
+            nn.Conv2d(baseFilters * 2, baseFilters * 4, kernel_size=3, padding=1),
+            nn.BatchNorm2d(baseFilters * 4),
+            nn.ReLU(inplace=True)
+        )
+        self.pool3 = nn.MaxPool2d(2, stride=2)
 
-        return map
+        # Deepest layer of UNet, without pooling after that
+        self.bottleneck = nn.Sequential(
+            nn.Conv2d(baseFilters * 4, baseFilters * 8, kernel_size=3, padding=1),
+            nn.BatchNorm2d(baseFilters * 8),
+            nn.ReLU(inplace=True)
+        )
+
