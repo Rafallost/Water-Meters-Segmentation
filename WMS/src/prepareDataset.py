@@ -32,7 +32,7 @@ valImgs, testImgs = train_test_split(tempImgs, test_size=0.5, random_state=42)
 
 splits = {'train': trainImgs, 'val': valImgs, 'test': testImgs}
 
-# Ścieżka bazowa dla nowej struktury danych (docelowej)
+# Folders creation
 baseDataDir = os.path.join(datasetPath, '..', 'data')
 for split, files in splits.items():
     for subfolder in ['images', 'masks']:
@@ -40,6 +40,8 @@ for split, files in splits.items():
     for fname in files:
         shutil.copy(os.path.join(sourceImageDir, fname), os.path.join(baseDataDir, split, 'images', fname))
         shutil.copy(os.path.join(sourceMaskDir, fname), os.path.join(baseDataDir, split, 'masks', fname))
+
+os.makedirs("../models", exist_ok=True)
 
 # Load data from folder 'train'
 trainImagePaths = [os.path.join(baseDataDir, 'train', 'images', f)

@@ -1,47 +1,47 @@
+import subprocess
 import os
-import random
+import sys
 
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
 
-from WMS.src.model import UNet
-from WMS.src.testDataset import IMAGE_DATASET_PATH, MASK_DATASET_PATH, imagePaths, image
+from WMS.src.model import WaterMetersUNet
+
 from dataset import WMSDataset
 from transforms import imageTransforms, maskTransforms
 
-IMAGE_DATASET_PATH = r"../data/images"
-MASK_DATASET_PATH = r"../data/masks"
+# Prepare data
+prepare_script = os.path.join(os.path.dirname(__file__), 'prepareDataset.py')
+subprocess.run([sys.executable, prepare_script], check=True)
 
-# Read data
-imagePaths = sorted([os.path.join(IMAGE_DATASET_PATH, f) for f in os.listdir(IMAGE_DATASET_PATH)])
-maskPaths = sorted([os.path.join(MASK_DATASET_PATH, f) for f in os.listdir(MASK_DATASET_PATH)])
+# Load data
+baseDataDir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data')
+trainImagePaths = [os.path.join(baseDataDir, 'train', 'images', f)
+                   for f in os.listdir(os.path.join(baseDataDir, 'train', 'images')) if f.endswith('.jpg')]
+trainMaskPaths  = [os.path.join(baseDataDir, 'train', 'masks', f)
+                   for f in os.listdir(os.path.join(baseDataDir, 'train', 'masks')) if f.endswith('.jpg')]
 
-indices = list(range(len(imagePaths)))
-random.shuffle(indices)
+testImagePaths = [os.path.join(baseDataDir, 'test', 'images', f)
+                   for f in os.listdir(os.path.join(baseDataDir, 'test', 'images')) if f.endswith('.jpg')]
+testMaskPaths  = [os.path.join(baseDataDir, 'test', 'masks', f)
+                   for f in os.listdir(os.path.join(baseDataDir, 'test', 'masks')) if f.endswith('.jpg')]
 
-# Split size: 80/10/10
-trainSize = int(0.8 * len(indices))
-valSize = int(0.1 * len(indices))
-testSize = int(0.1 * len(indices))
+valImagePaths = [os.path.join(baseDataDir, 'val', 'images', f)
+                   for f in os.listdir(os.path.join(baseDataDir, 'val', 'images')) if f.endswith('.jpg')]
+valMaskPaths  = [os.path.join(baseDataDir, 'val', 'masks', f)
+                   for f in os.listdir(os.path.join(baseDataDir, 'val', 'masks')) if f.endswith('.jpg')]
 
-# Split all indices
-trainIndices = indices[:trainSize]
-valueIndices = indices[trainSize:trainSize + valSize]
-testIndices = indices[trainSize + valSize:]
-
-# Paths for sub datasets
-trainImagePaths = [imagePaths[i] for i in trainIndices]
-trainMaskPaths = [maskPaths[i] for i in trainIndices]
-valImagePaths = [imagePaths[i] for i in valueIndices]
-valMaskPaths = [maskPaths[i] for i in valueIndices]
-testImagePaths = [imagePaths[i] for i in testIndices]
-testMaskPaths = [maskPaths[i] for i in testIndices]
-
-# Creating objects
 trainDataset = WMSDataset(trainImagePaths, trainMaskPaths, imageTransforms, maskTransforms)
-valDataset = WMSDataset(valImagePaths, valMaskPaths, imageTransforms, maskTransforms)
-testDataset = WMSDataset(testImagePaths, testMaskPaths, imageTransforms, maskTransforms)
+testDataset = WMSDataset(testImagePaths, trainMaskPaths, imageTransforms, maskTransforms)
+valDataset = WMSDataset(valImagePaths, trainMaskPaths, imageTransforms, maskTransforms)
+
+print(f"trainDataset length(train part): {len(trainDataset)}")
+print(f"testDataset length(train part): {len(testDataset)}")
+print(f"valDataset length(train part): {len(valDataset)}")
+
+dataLoader = DataLoader(trainDataset, batch_size=5, shuffle=True)
+images, masks = next(iter(dataLoader))
 
 # Creating dataloaders for each object
 trainLoader = DataLoader(trainDataset, batch_size=4, shuffle=True)
@@ -55,12 +55,14 @@ print(f"Test samples:  {len(testDataset)}")
 # Turn on cuda if possible
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# Create model
-model = UNet(nbClasses=1, outSize=(512,512))
+# Create model (in RGB out binary)
+model = WaterMetersUNet(inChannels=3, outChannels=1)
 model.to(device)
 
-# Cost function and optimizer
+# Cost function, Binary Cross Entropy z logitami, czyli bez sigmoid na końcu modelu
 criterion = nn.BCEWithLogitsLoss()
+
+# Optimizer to set learning speed. 5e-5 means slow training
 optimizer = optim.Adam(model.parameters(), lr=5e-5)
 
 numEpochs = 25
