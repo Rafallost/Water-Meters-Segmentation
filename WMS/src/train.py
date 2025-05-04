@@ -2,6 +2,7 @@ import subprocess
 import os
 import sys
 import torch
+import matplotlib.pyplot as plt
 
 from torch import nn, optim
 from torch.utils.data import DataLoader
@@ -68,6 +69,9 @@ criterion = nn.BCEWithLogitsLoss()
 # Adam optimizer with a learning rate of 5e-5 (slow, stable training)
 optimizer = optim.Adam(model.parameters(), lr=5e-5)
 
+trainLosses = []
+valLosses   = []
+
 numEpochs = 25
 for epoch in range(numEpochs):
     model.train()  # Set model to training mode (activates Dropout, updates BatchNorm)
@@ -91,6 +95,7 @@ for epoch in range(numEpochs):
 
     # Compute average training loss for this epoch
     avgTrainLoss = runningLoss / len(trainLoader)
+    trainLosses.append(avgTrainLoss)
 
     # Set model to evaluation mode (disables Dropout, uses running stats in BatchNorm)
     model.eval()
@@ -106,6 +111,7 @@ for epoch in range(numEpochs):
 
     # Compute average validation loss for this epoch
     avgValLoss = runningLoss / len(valLoader)
+    valLosses.append(avgValLoss)
     print(f"Epoch {epoch + 1}/{numEpochs} - Train Loss: {avgTrainLoss:.4f} - Val Loss: {avgValLoss:.4f}")
 
     # Save model weights to file
@@ -113,4 +119,14 @@ for epoch in range(numEpochs):
 
 # One RGB image 512x512
 summary(model, input_size=(3, 512, 512))
+
+plt.figure(figsize=(7,4))
+plt.plot(trainLosses, label='Train loss')
+plt.plot(valLosses,   label='Val loss')
+plt.xlabel('Epoch')
+plt.ylabel('BCE/Dice loss')
+plt.title('Learning curve')
+plt.legend()
+plt.grid()
+plt.show()
 
