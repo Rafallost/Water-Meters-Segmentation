@@ -7,11 +7,27 @@ import matplotlib.pyplot as plt
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchsummary import summary
-
-from WMS.src.model import WaterMetersUNet
+from scipy.spatial.distance import directed_hausdorff
+import numpy as np
+from src.model import WaterMetersUNet
 from dataset import WMSDataset
 
 from transforms import imageTransforms, maskTransforms
+
+# Dice coefficient
+def dice_coeff(pred, target, smooth=1e-6):
+    pred = pred.flatten()
+    target = target.flatten()
+    intersection = (pred * target).sum()
+    return (2. * intersection + smooth) / (pred.sum() + target.sum() + smooth)
+
+# Intersection over Union
+def iou_coeff(pred, target, smooth=1e-6):
+    pred = pred.flatten()
+    target = target.flatten()
+    intersection = (pred * target).sum()
+    union = pred.sum() + target.sum() - intersection
+    return (intersection + smooth) / (union + smooth)
 
 # Prepare data
 prepare_script = os.path.join(os.path.dirname(__file__), 'prepareDataset.py')
@@ -35,8 +51,8 @@ valMaskPaths  = [os.path.join(baseDataDir, 'val', 'masks', f)
                    for f in os.listdir(os.path.join(baseDataDir, 'val', 'masks')) if f.endswith('.jpg')]
 
 trainDataset = WMSDataset(trainImagePaths, trainMaskPaths, imageTransforms, maskTransforms)
-testDataset = WMSDataset(testImagePaths, trainMaskPaths, imageTransforms, maskTransforms)
-valDataset = WMSDataset(valImagePaths, trainMaskPaths, imageTransforms, maskTransforms)
+testDataset = WMSDataset(testImagePaths, testMaskPaths,  imageTransforms, maskTransforms)
+valDataset  = WMSDataset(valImagePaths,   valMaskPaths,   imageTransforms, maskTransforms)
 
 print(f"trainDataset length(train part): {len(trainDataset)}")
 print(f"testDataset length(train part): {len(testDataset)}")
@@ -69,10 +85,11 @@ criterion = nn.BCEWithLogitsLoss()
 # Adam optimizer with a learning rate of 5e-5 (slow, stable training)
 optimizer = optim.Adam(model.parameters(), lr=5e-5)
 
+testLosses = []
 trainLosses = []
 valLosses   = []
 
-numEpochs = 25
+numEpochs = 10
 for epoch in range(numEpochs):
     model.train()  # Set model to training mode (activates Dropout, updates BatchNorm)
     runningLoss = 0.0
@@ -114,6 +131,18 @@ for epoch in range(numEpochs):
     valLosses.append(avgValLoss)
     print(f"Epoch {epoch + 1}/{numEpochs} - Train Loss: {avgTrainLoss:.4f} - Val Loss: {avgValLoss:.4f}")
 
+    runningTestLoss = 0.0
+    model.eval()
+    with torch.no_grad():
+        for images, masks in testLoader:
+            images, masks = images.to(device), masks.to(device)
+            outputs = model(images)
+            loss = criterion(outputs, masks)
+            runningTestLoss += loss.item()
+    avgTestLoss = runningTestLoss / len(testLoader)
+    testLosses.append(avgTestLoss)
+    print(f"Epoch {epoch + 1}/{numEpochs} - Test Loss: {avgTestLoss:.4f}")
+
     # Save model weights to file
     torch.save(model.state_dict(), "../models/unet_trained_binary.pth")
 
@@ -123,10 +152,41 @@ summary(model, input_size=(3, 512, 512))
 plt.figure(figsize=(7,4))
 plt.plot(trainLosses, label='Train loss')
 plt.plot(valLosses,   label='Val loss')
+plt.plot(testLosses,  label='Test loss')
 plt.xlabel('Epoch')
 plt.ylabel('BCE/Dice loss')
 plt.title('Learning curve')
 plt.legend()
 plt.grid()
 plt.show()
+
+# --- oblicz metryki na ZBIORZE TESTOWYM ---
+dice_scores = []
+iou_scores  = []
+hausdorff_dists = []
+
+model.eval()
+with torch.no_grad():
+    for images, masks in testLoader:
+        images, masks = images.to(device), masks.to(device)
+        outputs = model(images)
+        probs = torch.sigmoid(outputs)
+        preds = (probs > 0.5).float().cpu().numpy()
+        masks_np = masks.cpu().numpy()
+
+        for p, m in zip(preds, masks_np):
+            # Dice, IoU
+            dice_scores.append(dice_coeff(p, m))
+            iou_scores.append(iou_coeff(p, m))
+            # Hausdorff (dwukierunkowo)
+            p_pts = np.argwhere(p.squeeze()==1)
+            m_pts = np.argwhere(m.squeeze()==1)
+            hd1 = directed_hausdorff(p_pts, m_pts)[0]
+            hd2 = directed_hausdorff(m_pts, p_pts)[0]
+            hausdorff_dists.append(max(hd1, hd2))
+
+print(f"Test Dice:    {np.mean(dice_scores):.4f}")
+print(f"Test IoU:     {np.mean(iou_scores):.4f}")
+print(f"Test Hausdorff: {np.mean(hausdorff_dists):.4f}")
+
 
