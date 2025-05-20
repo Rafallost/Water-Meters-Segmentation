@@ -1,12 +1,13 @@
 from torch.utils.data import Dataset # All PyTorch datasets must inherit from this base dataset class
 import cv2
+import torch
+import numpy as np
 
 class WMSDataset(Dataset):
-    def __init__(self, imagePaths, maskPaths, imageTransforms, maskTransforms,):
+    def __init__(self, imagePaths, maskPaths, imageTransforms):
         self.imagePaths = imagePaths
         self.maskPaths = maskPaths
         self.imageTransforms = imageTransforms
-        self.maskTransforms = maskTransforms
 
     def __len__(self):
         return len(self.imagePaths)
@@ -16,15 +17,16 @@ class WMSDataset(Dataset):
         image = cv2.imread(image_path) # Load image
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-        mask_path = self.maskPaths[i]
-        mask = cv2.imread(mask_path, 0) # 0 - greyscale
-        mask[mask < 127] = 0
-        mask[mask >= 127] = 1
-
         if self.imageTransforms:
             image = self.imageTransforms(image)
-        if self.maskTransforms:
-            mask = self.maskTransforms(mask)
+
+        mask = cv2.imread(self.maskPaths[i], cv2.IMREAD_GRAYSCALE)  # uint8
+        # Threshold to 0/1
+        mask = (mask >= 127).astype(np.uint8)
+        # resize from nearest neighbor
+        mask = cv2.resize(mask, (512, 512), interpolation=cv2.INTER_NEAREST)
+        # To tensor float32 0.0/1.0
+        mask = torch.from_numpy(mask.astype(np.float32))[None, ...]  # 1xHxW
 
         return image, mask
 
