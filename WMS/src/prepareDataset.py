@@ -2,16 +2,14 @@ import os
 import shutil
 import random
 from collections import defaultdict
-
 import cv2
 import numpy as np
 from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
 import torch
 import torchvision
 from torch.utils.data import DataLoader
 from dataset import WMSDataset
-from transforms import imageTransforms, maskTransforms
+from transforms import imageTransforms
 
 ############### DATA LOAD ###############
 random.seed(42)
@@ -59,9 +57,9 @@ valImagePaths = [os.path.join(baseDataDir, 'val', 'images', f)
 valMaskPaths  = [os.path.join(baseDataDir, 'val', 'masks', f)
                    for f in os.listdir(os.path.join(baseDataDir, 'val', 'masks')) if f.endswith('.jpg')]
 
-trainDataset = WMSDataset(trainImagePaths, trainMaskPaths, imageTransforms, maskTransforms)
-testDataset = WMSDataset(testImagePaths, trainMaskPaths, imageTransforms, maskTransforms)
-valDataset = WMSDataset(valImagePaths, trainMaskPaths, imageTransforms, maskTransforms)
+trainDataset = WMSDataset(trainImagePaths, trainMaskPaths, imageTransforms)
+testDataset = WMSDataset(testImagePaths, testMaskPaths, imageTransforms)
+valDataset  = WMSDataset(valImagePaths,  valMaskPaths,   imageTransforms)
 
 print(f"trainDataset length(train part): {len(trainDataset)}")
 print(f"testDataset length(train part): {len(testDataset)}")
@@ -95,8 +93,7 @@ def count_pixel_balance(mask_paths, dataset_name):
     plt.title(f"Pixel distribution for the set: {dataset_name}")
     plt.show()
 
-
-# Liczymy balance dla poszczególnych zbiorów
+# Count balances
 count_pixel_balance(trainMaskPaths, "Train")
 count_pixel_balance(valMaskPaths, "Validation")
 count_pixel_balance(testMaskPaths, "Test")
