@@ -3,16 +3,16 @@ import os
 import sys
 import torch
 import matplotlib.pyplot as plt
+import numpy as np
 
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchsummary import summary
 from scipy.spatial.distance import directed_hausdorff
-import numpy as np
 from src.model import WaterMetersUNet
 from dataset import WMSDataset
-
-from transforms import imageTransforms, maskTransforms
+from transforms import imageTransforms
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 # Dice coefficient
 def dice_coeff(pred, target, smooth=1e-6):
@@ -29,142 +29,158 @@ def iou_coeff(pred, target, smooth=1e-6):
     union = pred.sum() + target.sum() - intersection
     return (intersection + smooth) / (union + smooth)
 
+# Pixel-wise accuracy
+def pixel_accuracy(pred, target):
+    return (pred == target).mean()
+
 # Prepare data
 prepare_script = os.path.join(os.path.dirname(__file__), 'prepareDataset.py')
 subprocess.run([sys.executable, prepare_script], check=True)
 
 # Load data
 baseDataDir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data')
-trainImagePaths = [os.path.join(baseDataDir, 'train', 'images', f)
-                   for f in os.listdir(os.path.join(baseDataDir, 'train', 'images')) if f.endswith('.jpg')]
-trainMaskPaths  = [os.path.join(baseDataDir, 'train', 'masks', f)
-                   for f in os.listdir(os.path.join(baseDataDir, 'train', 'masks')) if f.endswith('.jpg')]
+# Utility to gather paths
+def gather_paths(split):
+    img_dir = os.path.join(baseDataDir, split, 'images')
+    mask_dir = os.path.join(baseDataDir, split, 'masks')
+    images = sorted([os.path.join(img_dir, f) for f in os.listdir(img_dir) if f.endswith('.jpg')])
+    masks  = sorted([os.path.join(mask_dir, f) for f in os.listdir(mask_dir) if f.endswith('.jpg')])
+    return images, masks
 
-testImagePaths = [os.path.join(baseDataDir, 'test', 'images', f)
-                   for f in os.listdir(os.path.join(baseDataDir, 'test', 'images')) if f.endswith('.jpg')]
-testMaskPaths  = [os.path.join(baseDataDir, 'test', 'masks', f)
-                   for f in os.listdir(os.path.join(baseDataDir, 'test', 'masks')) if f.endswith('.jpg')]
+trainImagePaths, trainMaskPaths = gather_paths('train')
+testImagePaths, testMaskPaths   = gather_paths('test')
+valImagePaths,  valMaskPaths    = gather_paths('val')
 
-valImagePaths = [os.path.join(baseDataDir, 'val', 'images', f)
-                   for f in os.listdir(os.path.join(baseDataDir, 'val', 'images')) if f.endswith('.jpg')]
-valMaskPaths  = [os.path.join(baseDataDir, 'val', 'masks', f)
-                   for f in os.listdir(os.path.join(baseDataDir, 'val', 'masks')) if f.endswith('.jpg')]
+trainDataset = WMSDataset(trainImagePaths, trainMaskPaths, imageTransforms)
+valDataset   = WMSDataset(valImagePaths,   valMaskPaths,   imageTransforms)
+testDataset  = WMSDataset(testImagePaths,  testMaskPaths,  imageTransforms)
 
-trainDataset = WMSDataset(trainImagePaths, trainMaskPaths, imageTransforms, maskTransforms)
-testDataset = WMSDataset(testImagePaths, testMaskPaths,  imageTransforms, maskTransforms)
-valDataset  = WMSDataset(valImagePaths,   valMaskPaths,   imageTransforms, maskTransforms)
-
-print(f"trainDataset length(train part): {len(trainDataset)}")
-print(f"testDataset length(train part): {len(testDataset)}")
-print(f"valDataset length(train part): {len(valDataset)}")
-
-# Get one batch
-dataLoader = DataLoader(trainDataset, batch_size=5, shuffle=True)
-images, masks = next(iter(dataLoader))
-
-# Creating dataloaders for each object
+# DataLoaders
 trainLoader = DataLoader(trainDataset, batch_size=4, shuffle=True)
-valLoader = DataLoader(valDataset, batch_size=4, shuffle=False)
-testLoader = DataLoader(testDataset, batch_size=4, shuffle=False)
+valLoader   = DataLoader(valDataset,   batch_size=4, shuffle=False)
+testLoader  = DataLoader(testDataset,  batch_size=4, shuffle=False)
 
-print(f"Train samples: {len(trainDataset)}")
-print(f"Validate samples:   {len(valDataset)}")
-print(f"Test samples:  {len(testDataset)}")
-
-# Turn on cuda if possible
+# Device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# Create model (in RGB out binary)
-model = WaterMetersUNet(inChannels=3, outChannels=1)
-model.to(device)
+model = WaterMetersUNet(inChannels=3, outChannels=1).to(device)
 
-# Binary Cross Entropy with Logits - loss function for binary classification
-# Takes model output (logits), applies sigmoid internally, and computes the loss
-criterion = nn.BCEWithLogitsLoss()
-
-# Adam optimizer with a learning rate of 5e-5 (slow, stable training)
+# Loss, optimizer and scheduler
+pos_weight = torch.tensor([1.0], device=device)
+criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 optimizer = optim.Adam(model.parameters(), lr=5e-5)
+scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=True)
 
-testLosses = []
-trainLosses = []
-valLosses   = []
+# Tracking
+trainLosses, valLosses, testLosses = [], [], []
+trainAccs, valAccs, testAccs = [], [], []
+numEpochs = 50
+bestVal = float('inf')
+patienceCtr = 0
 
-numEpochs = 10
-for epoch in range(numEpochs):
-    model.train()  # Set model to training mode (activates Dropout, updates BatchNorm)
-    runningLoss = 0.0
+# Training loop
+for epoch in range(1, numEpochs + 1):
+    model.train()
+    runningLoss, runningAcc = 0.0, 0.0
 
-    # Iterate over the entire training dataset in batches
     for images, masks in trainLoader:
-        images = images.to(device)
-        masks = masks.to(device)
-        # Clear gradients from the previous step
+        images, masks = images.to(device), masks.to(device)
         optimizer.zero_grad()
-        # Forward pass through the network
         outputs = model(images)
-        # Calculate loss between model predictions and ground truth masks
         loss = criterion(outputs, masks)
-        # Backpropagation: compute gradients
         loss.backward()
-        # Update model weights based on gradients
         optimizer.step()
+
+        with torch.no_grad():
+            probs = torch.sigmoid(outputs)
+            preds = (probs > 0.5).float()
+            batch_acc = pixel_accuracy(preds.cpu().numpy(), masks.cpu().numpy())
+        runningAcc  += batch_acc
         runningLoss += loss.item()
 
-    # Compute average training loss for this epoch
     avgTrainLoss = runningLoss / len(trainLoader)
+    avgTrainAcc  = runningAcc  / len(trainLoader)
     trainLosses.append(avgTrainLoss)
+    trainAccs.append(avgTrainAcc)
 
-    # Set model to evaluation mode (disables Dropout, uses running stats in BatchNorm)
+    # Validation
     model.eval()
-    runningLoss = 0.0
-    # Inference loop - same as training, but without gradient tracking
+    runningLoss, runningValAcc = 0.0, 0.0
     with torch.no_grad():
         for images, masks in valLoader:
-            images = images.to(device)
-            masks = masks.to(device)
+            images, masks = images.to(device), masks.to(device)
             outputs = model(images)
-            loss = criterion(outputs, masks)
-            runningLoss += loss.item()
+            runningLoss += criterion(outputs, masks).item()
+            probs = torch.sigmoid(outputs)
+            preds = (probs > 0.5).float()
+            runningValAcc += pixel_accuracy(preds.cpu().numpy(), masks.cpu().numpy())
 
-    # Compute average validation loss for this epoch
     avgValLoss = runningLoss / len(valLoader)
+    avgValAcc  = runningValAcc / len(valLoader)
     valLosses.append(avgValLoss)
-    print(f"Epoch {epoch + 1}/{numEpochs} - Train Loss: {avgTrainLoss:.4f} - Val Loss: {avgValLoss:.4f}")
+    valAccs.append(avgValAcc)
+    scheduler.step(avgValLoss)
 
-    runningTestLoss = 0.0
+    # Save best result
+    if avgValLoss < bestVal:
+        bestVal = avgValLoss
+        patienceCtr = 0
+        torch.save(model.state_dict(), os.path.join(os.path.dirname(__file__), '..', 'models', f'best.pth'))
+    else:
+        patienceCtr += 1
+        if patienceCtr >= 5:
+            print("Early stopping")
+            break
+
+    # Testing
     model.eval()
+    runningTestLoss, runningTestAcc = 0.0, 0.0
     with torch.no_grad():
         for images, masks in testLoader:
             images, masks = images.to(device), masks.to(device)
             outputs = model(images)
-            loss = criterion(outputs, masks)
-            runningTestLoss += loss.item()
+            runningTestLoss += criterion(outputs, masks).item()
+            probs = torch.sigmoid(outputs)
+            preds = (probs > 0.5).float()
+            runningTestAcc += pixel_accuracy(preds.cpu().numpy(), masks.cpu().numpy())
+
     avgTestLoss = runningTestLoss / len(testLoader)
+    avgTestAcc  = runningTestAcc  / len(testLoader)
     testLosses.append(avgTestLoss)
-    print(f"Epoch {epoch + 1}/{numEpochs} - Test Loss: {avgTestLoss:.4f}")
+    testAccs.append(avgTestAcc)
 
-    # Save model weights to file
-    torch.save(model.state_dict(), "../models/unet_trained_binary.pth")
+    # Logging
+    print(f"Epoch {epoch}/{numEpochs}"
+          f" - Train Loss: {avgTrainLoss:.4f}, Train Acc: {avgTrainAcc:.4f}"
+          f" - Val Loss: {avgValLoss:.4f}, Val Acc: {avgValAcc:.4f}"
+          f" - Test Loss: {avgTestLoss:.4f}, Test Acc: {avgTestAcc:.4f}")
 
-# One RGB image 512x512
+    # Saving checkpoint
+    os.makedirs(os.path.join(os.path.dirname(__file__), '..', 'models'), exist_ok=True)
+    torch.save(model.state_dict(), os.path.join(os.path.dirname(__file__), '..', 'models', f'unet_epoch{epoch}.pth'))
+
+# Summary and plots
 summary(model, input_size=(3, 512, 512))
 
-plt.figure(figsize=(7,4))
-plt.plot(trainLosses, label='Train loss')
-plt.plot(valLosses,   label='Val loss')
-plt.plot(testLosses,  label='Test loss')
+plt.figure(figsize=(8,5))
+plt.plot(trainLosses, label='Train Loss')
+plt.plot(valLosses,   label='Val Loss')
+plt.plot(testLosses,  label='Test Loss')
 plt.xlabel('Epoch')
-plt.ylabel('BCE/Dice loss')
-plt.title('Learning curve')
-plt.legend()
-plt.grid()
+plt.ylabel('Loss')
+plt.twinx()
+plt.plot(trainAccs, '--', label='Train Acc')
+plt.plot(valAccs,   '--', label='Val Acc')
+plt.plot(testAccs,  '--', label='Test Acc')
+plt.ylabel('Accuracy')
+plt.title('Learning Curve')
+plt.legend(loc='best')
+plt.grid(True)
 plt.show()
 
-# --- oblicz metryki na ZBIORZE TESTOWYM ---
-dice_scores = []
-iou_scores  = []
-hausdorff_dists = []
-
+# Final metrics on test set
+print("--- Final evaluation on test set ---")
+dice_scores, iou_scores, hausdorff_dists = [], [], []
 model.eval()
 with torch.no_grad():
     for images, masks in testLoader:
@@ -173,20 +189,44 @@ with torch.no_grad():
         probs = torch.sigmoid(outputs)
         preds = (probs > 0.5).float().cpu().numpy()
         masks_np = masks.cpu().numpy()
-
         for p, m in zip(preds, masks_np):
-            # Dice, IoU
             dice_scores.append(dice_coeff(p, m))
             iou_scores.append(iou_coeff(p, m))
-            # Hausdorff (dwukierunkowo)
             p_pts = np.argwhere(p.squeeze()==1)
             m_pts = np.argwhere(m.squeeze()==1)
             hd1 = directed_hausdorff(p_pts, m_pts)[0]
             hd2 = directed_hausdorff(m_pts, p_pts)[0]
             hausdorff_dists.append(max(hd1, hd2))
 
-print(f"Test Dice:    {np.mean(dice_scores):.4f}")
-print(f"Test IoU:     {np.mean(iou_scores):.4f}")
+print(f"Test Dice:      {np.mean(dice_scores):.4f}")
+print(f"Test IoU:       {np.mean(iou_scores):.4f}")
 print(f"Test Hausdorff: {np.mean(hausdorff_dists):.4f}")
 
 
+model.eval()
+images, masks = next(iter(testLoader))
+images = images.to(device)
+with torch.no_grad():
+    outputs = model(images)
+    probs = torch.sigmoid(outputs)
+    preds = (probs > 0.5).float().cpu()
+
+images = images.cpu().permute(0, 2, 3, 1).numpy()
+masks = masks.cpu().squeeze(1).numpy()
+preds = preds.squeeze(1).numpy()
+
+for i in range(images.shape[0]):
+    plt.figure(figsize=(12,4))
+    plt.subplot(1,3,1)
+    plt.imshow(images[i])
+    plt.title('Image')
+    plt.axis('off')
+    plt.subplot(1,3,2)
+    plt.imshow(masks[i], cmap='gray')
+    plt.title('GT Mask')
+    plt.axis('off')
+    plt.subplot(1,3,3)
+    plt.imshow(preds[i], cmap='gray')
+    plt.title('Predicted Mask')
+    plt.axis('off')
+    plt.show()
