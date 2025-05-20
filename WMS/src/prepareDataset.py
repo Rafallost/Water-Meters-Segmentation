@@ -10,6 +10,7 @@ import torchvision
 from torch.utils.data import DataLoader
 from dataset import WMSDataset
 from transforms import imageTransforms
+import matplotlib.pyplot as plt
 
 ############### DATA LOAD ###############
 random.seed(42)
