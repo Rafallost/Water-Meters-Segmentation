@@ -9,7 +9,7 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchsummary import summary
 from scipy.spatial.distance import directed_hausdorff
-from src.model import WaterMetersUNet
+from model import WaterMetersUNet
 from dataset import WMSDataset
 from transforms import imageTransforms
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -18,16 +18,17 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 def dice_coeff(pred, target, smooth=1e-6):
     pred = pred.flatten()
     target = target.flatten()
-    intersection = (pred * target).sum()
-    return (2. * intersection + smooth) / (pred.sum() + target.sum() + smooth)
+    intersection = (pred * target).sum() # 2*|pred ∩ GT| # GT - Ground Truth
+    return (2. * intersection + smooth) / (pred.sum() + target.sum() + smooth) # 2*|pred ∩ GT|
+
 
 # Intersection over Union
 def iou_coeff(pred, target, smooth=1e-6):
     pred = pred.flatten()
     target = target.flatten()
-    intersection = (pred * target).sum()
-    union = pred.sum() + target.sum() - intersection
-    return (intersection + smooth) / (union + smooth)
+    intersection = (pred * target).sum() # |pred ∩ GT|
+    union = pred.sum() + target.sum() - intersection # |pred| + |GT| − |pred ∩ GT|
+    return (intersection + smooth) / (union + smooth) # smooth to avoid division by 0
 
 # Pixel-wise accuracy
 def pixel_accuracy(pred, target):
