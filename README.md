@@ -6,11 +6,11 @@ A deep learning project for segmenting water meter displays using U-Net architec
 
 ## Example
 
-<img src="Results/Example.jpg" width="1000" alt="Example water meter image">
+<img src="Results/Example.jpg" width="762" alt="Example water meter image">
 
 ## Dataset
 
-<a href="https://www.kaggle.com/datasets/tapakah68/yandextoloka-water-meters-dataset?resource=download-directory">Water Meters Dataset</a> (Yandex Toloka)
+<a href="https://www.kaggle.com/datasets/tapakah68/yandextoloka-water-meters-dataset?resource=download-directory">Water Meters Dataset</a> (KUCEV ROMAN)
 
 | Property | Value |
 |----------|-------|
@@ -62,22 +62,26 @@ Training converged over 25 epochs with both train and validation loss decreasing
 ```
 Water-Meters-Segmentation/
 ├── README.md
-├── Report.pdf
+└── Results/
+│    ├── Example.jpg            # A single example of a predicted mask
+│    ├── Report.pdf             # Academic report in Polish
 └── WMS/
-    ├── src/
-    │   ├── dataset.py         # WMSDataset class
-    │   ├── model.py           # U-Net model implementation
-    │   ├── transforms.py      # Image preprocessing transforms
-    │   ├── prepareDataset.py  # Data preparation and splitting
-    │   ├── train.py           # Training script
-    │   └── predicts.py        # Inference script
     ├── data/
     │   ├── images/            # Original images
     │   ├── masks/             # Segmentation masks
     │   └── collage/           # Sample visualizations
-    └── models/
-        ├── best.pth           # Best model checkpoint
-        └── unet_epoch*.pth    # Epoch checkpoints
+    ├──  models/
+    │   ├── best.pth           # Best model checkpoint
+    │   └── unet_epoch*.pth    # Epoch checkpoints
+    └── src/
+        ├── dataset.py         # WMSDataset class
+        ├── model.py           # U-Net model implementation
+        ├── transforms.py      # Image preprocessing transforms
+        ├── prepareDataset.py  # Data preparation and splitting
+        ├── train.py           # Training script
+        └── predicts.py        # Inference script
+
+
 ```
 
 ## Requirements
@@ -117,4 +121,4 @@ Runs predictions on test images or custom images.
 - **Wojciech Szewczyk**
 - **Rafal Zablotni**
 
-> For more details, see [Report.pdf](Results/Report.pdf) (academic report in Polish).
+> For more details, see [Report.pdf](Results/Report.pdf) (Academic report in Polish).
