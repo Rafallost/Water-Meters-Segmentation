@@ -1,7 +1,7 @@
 import torch
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
-from src.model import WaterMetersUNet
+from model import WaterMetersUNet
 from dataset import WMSDataset
 from transforms import imageTransforms
 import cv2
@@ -25,7 +25,8 @@ testLoader  = DataLoader(testDataset, batch_size=16, shuffle=False)
 # Loading model and weight
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = WaterMetersUNet(inChannels=3, outChannels=1).to(device)
-checkpoint = torch.load('../models/best.pth', map_location=device) # CHOOSE CHECKPOINT
+modelPath = os.path.join(os.path.dirname(__file__), '..', 'models', 'best.pth')  # CHOOSE CHECKPOINT
+checkpoint = torch.load(modelPath, map_location=device)
 model.load_state_dict(checkpoint)
 model.eval()
 
