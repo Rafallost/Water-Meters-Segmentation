@@ -73,20 +73,20 @@ images, masks = next(iter(dataLoader))
 def count_pixel_balance(mask_paths, dataset_name):
     counts = defaultdict(int)
     for mask_path in mask_paths:
-        mask = cv2.imread(mask_path, 0)  # Load mask as grayscale
-        if mask is None:
+        mask_img = cv2.imread(mask_path, 0)  # Load mask as grayscale
+        if mask_img is None:
             print(f"Warning: Could not load {mask_path}")
             continue
         # Apply same thresholding as in WMSDataset to avoid JPEG compression artifacts
-        mask = (mask >= 127).astype(np.uint8)
-        unique, cnts = np.unique(mask, return_counts=True)
+        mask_img = (mask_img >= 127).astype(np.uint8)
+        unique, cnts = np.unique(mask_img, return_counts=True)
         for cls, count in zip(unique, cnts):
             counts[cls] += count
     print(f"\nPixel distribution for the set {dataset_name}:")
     for cls, count in sorted(counts.items()):
         print(f"Class {cls}: {count} pixels")
 
-    # Wykres słupkowy dla wizualizacji
+    # Bar chart for visualization
     classes = sorted(counts.keys())
     values = [counts[c] for c in classes]
     plt.figure(figsize=(8, 6))
@@ -116,7 +116,7 @@ labels = ['Train', 'Validation', 'Test']
 
 plt.figure(figsize=(6, 6))
 plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140)
-plt.title('Podział zbioru danych')
+plt.title('Dataset Split')
 plt.axis('equal')  # Equal aspect ratio ensures pie is drawn as a circle.
 plt.show()
 
@@ -125,9 +125,9 @@ for i in range(5):
     image = images[i].permute(1, 2, 0).numpy()
     mask = masks[i].squeeze().numpy()
     axs[i, 0].imshow(image)
-    axs[i, 0].set_title("Obraz")
+    axs[i, 0].set_title("Image")
     axs[i, 1].imshow(mask, cmap='gray')
-    axs[i, 1].set_title("Maska")
+    axs[i, 1].set_title("Mask")
     axs[i, 0].axis("off")
     axs[i, 1].axis("off")
 

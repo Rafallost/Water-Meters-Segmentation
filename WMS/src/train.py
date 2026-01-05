@@ -34,6 +34,33 @@ def iou_coeff(pred, target, smooth=1e-6):
 def pixel_accuracy(pred, target):
     return (pred == target).mean()
 
+# Safe Hausdorff distance that handles empty masks
+def safe_hausdorff(pred_mask, gt_mask):
+    """
+    Compute Hausdorff distance with handling for empty masks.
+    - If both masks are empty: return 0 (both agree there's nothing)
+    - If one mask is empty and the other is not: return the image diagonal as max penalty
+    - Otherwise: compute the standard Hausdorff distance
+    """
+    p_pts = np.argwhere(pred_mask.squeeze() == 1)
+    m_pts = np.argwhere(gt_mask.squeeze() == 1)
+
+    pred_empty = len(p_pts) == 0
+    gt_empty = len(m_pts) == 0
+
+    if pred_empty and gt_empty:
+        # Both masks are empty - perfect agreement
+        return 0.0
+    elif pred_empty or gt_empty:
+        # One mask is empty - return max possible distance (image diagonal)
+        h, w = pred_mask.squeeze().shape
+        return np.sqrt(h**2 + w**2)
+    else:
+        # Both masks have points - compute standard Hausdorff
+        hd1 = directed_hausdorff(p_pts, m_pts)[0]
+        hd2 = directed_hausdorff(m_pts, p_pts)[0]
+        return max(hd1, hd2)
+
 # Prepare data
 prepare_script = os.path.join(os.path.dirname(__file__), 'prepareDataset.py')
 subprocess.run([sys.executable, prepare_script], check=True)
@@ -193,11 +220,7 @@ with torch.no_grad():
         for p, m in zip(preds, masks_np):
             dice_scores.append(dice_coeff(p, m))
             iou_scores.append(iou_coeff(p, m))
-            p_pts = np.argwhere(p.squeeze()==1)
-            m_pts = np.argwhere(m.squeeze()==1)
-            hd1 = directed_hausdorff(p_pts, m_pts)[0]
-            hd2 = directed_hausdorff(m_pts, p_pts)[0]
-            hausdorff_dists.append(max(hd1, hd2))
+            hausdorff_dists.append(safe_hausdorff(p, m))
 
 print(f"Test Dice:      {np.mean(dice_scores):.4f}")
 print(f"Test IoU:       {np.mean(iou_scores):.4f}")

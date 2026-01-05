@@ -34,19 +34,19 @@ for fname in os.listdir(custom_dir):
     if not fname.lower().endswith('.jpg'):
         continue
     img_path = os.path.join(custom_dir, fname)
-    # 1) Wczytaj i skonwertuj na RGB
+    # 1) Load and convert to RGB
     bgr = cv2.imread(img_path)
     rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
     orig_resized = cv2.resize(rgb, (512, 512), interpolation=cv2.INTER_AREA)
-    # 2) Transformacje takie jak w treningu
+    # 2) Apply same transformations as in training
     tensor = imageTransforms(rgb).unsqueeze(0).to(device)  # [1,3,512,512]
-    # 3) Predykcja
+    # 3) Prediction
     with torch.no_grad():
         out   = model(tensor)
         prob  = torch.sigmoid(out).squeeze().cpu().numpy()   # [512,512]
         predM = (prob > 0.5).astype('uint8') * 255           # 0/255
 
-    # 4) Wyświetl obie siatki
+    # 4) Display both images
     fig, ax = plt.subplots(1,2, figsize=(10,5))
     ax[0].imshow(orig_resized)
     ax[0].set_title('Original')
@@ -57,7 +57,7 @@ for fname in os.listdir(custom_dir):
     plt.suptitle(fname)
     plt.show()
 
-    # 5) (opcjonalnie) zapisz maskę
+    # 5) (optional) save the mask
     cv2.imwrite(os.path.join(save_dir, f"mask_{fname}"), predM)
 
 # N = number of samples
