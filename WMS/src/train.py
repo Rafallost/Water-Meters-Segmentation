@@ -70,7 +70,7 @@ model = WaterMetersUNet(inChannels=3, outChannels=1).to(device)
 pos_weight = torch.tensor([1.0], device=device)
 criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 optimizer = optim.Adam(model.parameters(), lr=5e-5)
-scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=True)
+scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
 
 # Tracking
 trainLosses, valLosses, testLosses = [], [], []

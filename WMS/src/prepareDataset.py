@@ -73,10 +73,12 @@ images, masks = next(iter(dataLoader))
 def count_pixel_balance(mask_paths, dataset_name):
     counts = defaultdict(int)
     for mask_path in mask_paths:
-        mask = cv2.imread(mask_path, 0)  # Wczytujemy maskę jako grayscale
+        mask = cv2.imread(mask_path, 0)  # Load mask as grayscale
         if mask is None:
             print(f"Warning: Could not load {mask_path}")
             continue
+        # Apply same thresholding as in WMSDataset to avoid JPEG compression artifacts
+        mask = (mask >= 127).astype(np.uint8)
         unique, cnts = np.unique(mask, return_counts=True)
         for cls, count in zip(unique, cnts):
             counts[cls] += count
