@@ -102,6 +102,8 @@ scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
 # Tracking
 trainLosses, valLosses, testLosses = [], [], []
 trainAccs, valAccs, testAccs = [], [], []
+trainDice, valDice, testDice = [], [], []
+trainIoU, valIoU, testIoU = [], [], []
 numEpochs = 50
 bestVal = float('inf')
 patienceCtr = 0
@@ -109,7 +111,7 @@ patienceCtr = 0
 # Training loop
 for epoch in range(1, numEpochs + 1):
     model.train()
-    runningLoss, runningAcc = 0.0, 0.0
+    runningLoss, runningAcc, runningDice, runningIoU = 0.0, 0.0, 0.0, 0.0
 
     for images, masks in trainLoader:
         images, masks = images.to(device), masks.to(device)
@@ -122,18 +124,28 @@ for epoch in range(1, numEpochs + 1):
         with torch.no_grad():
             probs = torch.sigmoid(outputs)
             preds = (probs > 0.5).float()
-            batch_acc = pixel_accuracy(preds.cpu().numpy(), masks.cpu().numpy())
+            preds_np = preds.cpu().numpy()
+            masks_np = masks.cpu().numpy()
+            batch_acc = pixel_accuracy(preds_np, masks_np)
+            batch_dice = sum([dice_coeff(p, m) for p, m in zip(preds_np, masks_np)]) / len(preds_np)
+            batch_iou = sum([iou_coeff(p, m) for p, m in zip(preds_np, masks_np)]) / len(preds_np)
         runningAcc  += batch_acc
+        runningDice += batch_dice
+        runningIoU  += batch_iou
         runningLoss += loss.item()
 
     avgTrainLoss = runningLoss / len(trainLoader)
     avgTrainAcc  = runningAcc  / len(trainLoader)
+    avgTrainDice = runningDice / len(trainLoader)
+    avgTrainIoU  = runningIoU  / len(trainLoader)
     trainLosses.append(avgTrainLoss)
     trainAccs.append(avgTrainAcc)
+    trainDice.append(avgTrainDice)
+    trainIoU.append(avgTrainIoU)
 
     # Validation
     model.eval()
-    runningLoss, runningValAcc = 0.0, 0.0
+    runningLoss, runningValAcc, runningValDice, runningValIoU = 0.0, 0.0, 0.0, 0.0
     with torch.no_grad():
         for images, masks in valLoader:
             images, masks = images.to(device), masks.to(device)
@@ -141,12 +153,20 @@ for epoch in range(1, numEpochs + 1):
             runningLoss += criterion(outputs, masks).item()
             probs = torch.sigmoid(outputs)
             preds = (probs > 0.5).float()
-            runningValAcc += pixel_accuracy(preds.cpu().numpy(), masks.cpu().numpy())
+            preds_np = preds.cpu().numpy()
+            masks_np = masks.cpu().numpy()
+            runningValAcc += pixel_accuracy(preds_np, masks_np)
+            runningValDice += sum([dice_coeff(p, m) for p, m in zip(preds_np, masks_np)]) / len(preds_np)
+            runningValIoU += sum([iou_coeff(p, m) for p, m in zip(preds_np, masks_np)]) / len(preds_np)
 
     avgValLoss = runningLoss / len(valLoader)
     avgValAcc  = runningValAcc / len(valLoader)
+    avgValDice = runningValDice / len(valLoader)
+    avgValIoU  = runningValIoU / len(valLoader)
     valLosses.append(avgValLoss)
     valAccs.append(avgValAcc)
+    valDice.append(avgValDice)
+    valIoU.append(avgValIoU)
     scheduler.step(avgValLoss)
 
     # Save best result
@@ -162,7 +182,7 @@ for epoch in range(1, numEpochs + 1):
 
     # Testing
     model.eval()
-    runningTestLoss, runningTestAcc = 0.0, 0.0
+    runningTestLoss, runningTestAcc, runningTestDice, runningTestIoU = 0.0, 0.0, 0.0, 0.0
     with torch.no_grad():
         for images, masks in testLoader:
             images, masks = images.to(device), masks.to(device)
@@ -170,18 +190,26 @@ for epoch in range(1, numEpochs + 1):
             runningTestLoss += criterion(outputs, masks).item()
             probs = torch.sigmoid(outputs)
             preds = (probs > 0.5).float()
-            runningTestAcc += pixel_accuracy(preds.cpu().numpy(), masks.cpu().numpy())
+            preds_np = preds.cpu().numpy()
+            masks_np = masks.cpu().numpy()
+            runningTestAcc += pixel_accuracy(preds_np, masks_np)
+            runningTestDice += sum([dice_coeff(p, m) for p, m in zip(preds_np, masks_np)]) / len(preds_np)
+            runningTestIoU += sum([iou_coeff(p, m) for p, m in zip(preds_np, masks_np)]) / len(preds_np)
 
     avgTestLoss = runningTestLoss / len(testLoader)
     avgTestAcc  = runningTestAcc  / len(testLoader)
+    avgTestDice = runningTestDice / len(testLoader)
+    avgTestIoU  = runningTestIoU  / len(testLoader)
     testLosses.append(avgTestLoss)
     testAccs.append(avgTestAcc)
+    testDice.append(avgTestDice)
+    testIoU.append(avgTestIoU)
 
     # Logging
     print(f"Epoch {epoch}/{numEpochs}"
-          f" - Train Loss: {avgTrainLoss:.4f}, Train Acc: {avgTrainAcc:.4f}"
-          f" - Val Loss: {avgValLoss:.4f}, Val Acc: {avgValAcc:.4f}"
-          f" - Test Loss: {avgTestLoss:.4f}, Test Acc: {avgTestAcc:.4f}")
+          f" - Train Loss: {avgTrainLoss:.4f}, Acc: {avgTrainAcc:.4f}, Dice: {avgTrainDice:.4f}, IoU: {avgTrainIoU:.4f}"
+          f" - Val Loss: {avgValLoss:.4f}, Acc: {avgValAcc:.4f}, Dice: {avgValDice:.4f}, IoU: {avgValIoU:.4f}"
+          f" - Test Loss: {avgTestLoss:.4f}, Acc: {avgTestAcc:.4f}, Dice: {avgTestDice:.4f}, IoU: {avgTestIoU:.4f}")
 
     # Saving checkpoint
     os.makedirs(os.path.join(os.path.dirname(__file__), '..', 'models'), exist_ok=True)
@@ -190,20 +218,50 @@ for epoch in range(1, numEpochs + 1):
 # Summary and plots
 summary(model, input_size=(3, 512, 512))
 
-plt.figure(figsize=(8,5))
-plt.plot(trainLosses, label='Train Loss')
-plt.plot(valLosses,   label='Val Loss')
-plt.plot(testLosses,  label='Test Loss')
-plt.xlabel('Epoch')
-plt.ylabel('Loss')
-plt.twinx()
-plt.plot(trainAccs, '--', label='Train Acc')
-plt.plot(valAccs,   '--', label='Val Acc')
-plt.plot(testAccs,  '--', label='Test Acc')
-plt.ylabel('Accuracy')
-plt.title('Learning Curve')
-plt.legend(loc='best')
-plt.grid(True)
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+# Plot 1: Loss
+axes[0, 0].plot(trainLosses, label='Train', color='tab:blue', marker='o', markersize=3)
+axes[0, 0].plot(valLosses,   label='Val', color='tab:orange', marker='s', markersize=3)
+axes[0, 0].plot(testLosses,  label='Test', color='tab:green', marker='^', markersize=3)
+axes[0, 0].set_xlabel('Epoch')
+axes[0, 0].set_ylabel('Loss')
+axes[0, 0].set_title('Loss vs Epoch')
+axes[0, 0].legend(loc='best')
+axes[0, 0].grid(True, alpha=0.3)
+
+# Plot 2: Accuracy
+axes[0, 1].plot(trainAccs, label='Train', color='tab:blue', marker='o', markersize=3)
+axes[0, 1].plot(valAccs,   label='Val', color='tab:orange', marker='s', markersize=3)
+axes[0, 1].plot(testAccs,  label='Test', color='tab:green', marker='^', markersize=3)
+axes[0, 1].set_xlabel('Epoch')
+axes[0, 1].set_ylabel('Accuracy')
+axes[0, 1].set_title('Accuracy vs Epoch')
+axes[0, 1].legend(loc='best')
+axes[0, 1].grid(True, alpha=0.3)
+
+# Plot 3: Dice Coefficient
+axes[1, 0].plot(trainDice, label='Train', color='tab:blue', marker='o', markersize=3)
+axes[1, 0].plot(valDice,   label='Val', color='tab:orange', marker='s', markersize=3)
+axes[1, 0].plot(testDice,  label='Test', color='tab:green', marker='^', markersize=3)
+axes[1, 0].set_xlabel('Epoch')
+axes[1, 0].set_ylabel('Dice Coefficient')
+axes[1, 0].set_title('Dice Coefficient vs Epoch')
+axes[1, 0].legend(loc='best')
+axes[1, 0].grid(True, alpha=0.3)
+
+# Plot 4: IoU (Intersection over Union)
+axes[1, 1].plot(trainIoU, label='Train', color='tab:blue', marker='o', markersize=3)
+axes[1, 1].plot(valIoU,   label='Val', color='tab:orange', marker='s', markersize=3)
+axes[1, 1].plot(testIoU,  label='Test', color='tab:green', marker='^', markersize=3)
+axes[1, 1].set_xlabel('Epoch')
+axes[1, 1].set_ylabel('IoU')
+axes[1, 1].set_title('IoU vs Epoch')
+axes[1, 1].legend(loc='best')
+axes[1, 1].grid(True, alpha=0.3)
+
+plt.suptitle('Training Metrics', fontsize=16, fontweight='bold')
+plt.tight_layout()
 plt.show()
 
 # Final metrics on test set
