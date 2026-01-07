@@ -15,7 +15,7 @@ mask_dir = os.path.join(baseDataDir, 'test', 'masks')
 testImgs = sorted([os.path.join(img_dir, f) for f in os.listdir(img_dir) if f.endswith('.jpg')])
 testMasks  = sorted([os.path.join(mask_dir, f) for f in os.listdir(mask_dir) if f.endswith('.jpg')])
 
-custom_dir = os.path.join(baseDataDir, 'custom')
+custom_dir = os.path.join(baseDataDir, 'custom_images')
 save_dir   = os.path.join(baseDataDir, 'custom_predictions')
 os.makedirs(save_dir, exist_ok=True)
 
