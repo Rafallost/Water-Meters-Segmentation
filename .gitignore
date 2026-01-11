@@ -180,3 +180,6 @@ WMS/data/predictions/predicted_masks/
 
 # PyPI configuration file
 .pypirc
+
+# Claude Code files
+prompt.md

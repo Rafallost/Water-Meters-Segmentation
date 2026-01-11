@@ -74,31 +74,48 @@ Training was conducted over 50 epochs. Both train and validation losses decrease
 
 ```
 Water-Meters-Segmentation/
-├── README.md
+├── .gitignore                    # Git ignore configuration
+├── README.md                     # This file
 ├── Results/
-│   ├── Report_EN.md            # Current project report in English
-│   ├── Report_PL.pdf           # Original academic report in Polish (obsolete results)
+│   ├── custom_images/            # Self-taken photos of water meters 
+│   ├── custom_predictions/       # Predicted masks for self-taken photos
+│   ├── Report_EN.md              # Comprehensive project report
+│   ├── Report_PL.pdf             # Original Polish report (obsolete)
 │   ├── Example_Prediction_*.png  # Example predictions (4 files)
-│   ├── Pixel_Distribution_*.png  # Dataset statistics visualizations
+│   ├── Pixel_Distribution_*.png  # Dataset statistics (3 files)
 │   ├── Distribution_Set_Plot.png # Dataset split visualization
-│   ├── plot_*.png              # Additional training plots
-│   └── Terminal.log            # Training output log
+│   ├── plot_*.png                # Training curves (2 files)
+│   └── Terminal.log              # Training output log
 └── WMS/
     ├── data/
-    │   ├── images/             # Original images
-    │   ├── masks/              # Segmentation masks
-    │   └── collage/            # Sample visualizations
+    │   ├── training/
+    │   │   ├── images/           # [REQUIRED] Source images
+    │   │   ├── masks/            # [REQUIRED] Source masks
+    │   │   └── temp/             # [AUTO-GENERATED] Train/val/test splits
+    │   │       ├── train/        #  80% of source
+    │   │       ├── val/          #  10% of source
+    │   │       └── test/         #  10% of source
+    │   └── predictions/
+    │       ├── photos_to_predict/  # [USER INPUT] Images to predict
+    │       └── predicted_masks/    # [AUTO-GENERATED] Output masks
     ├── models/
-    │   ├── best.pth            # Best model checkpoint
-    │   └── unet_epoch*.pth     # Epoch checkpoints (50 files)
+    │   ├── best.pth              # [AUTO-GENERATED] Best checkpoint
+    │   └── unet_epoch*.pth       # [AUTO-GENERATED] Epoch checkpoints
     └── src/
-        ├── dataset.py          # WMSDataset class
-        ├── model.py            # U-Net model implementation
-        ├── transforms.py       # Image preprocessing transforms
-        ├── prepareDataset.py   # Data preparation and splitting
-        ├── train.py            # Training script
-        └── predicts.py         # Inference script
+        ├── dataset.py            # PyTorch Dataset class
+        ├── model.py              # U-Net architecture
+        ├── transforms.py         # Image preprocessing
+        ├── prepareDataset.py     # Data splitting (80/10/10)
+        ├── train.py              # Training loop + metrics
+        └── predicts.py           # Inference (no temp dirs needed)
 ```
+
+**Key Notes:**
+- `[REQUIRED]` directories must exist with data before training
+- `[AUTO-GENERATED]` directories are created automatically by scripts
+- `[USER INPUT]` directories are where you place new images for predictions
+- The `temp/` directory is ignored by git (temporary training splits)
+- `predicts.py` works independently with just `best.pth` and input images
 
 ## Requirements
 
@@ -115,24 +132,48 @@ Water-Meters-Segmentation/
 
 ## Usage
 
-### 1. Prepare Dataset (optional)
+### Training Workflow
+
+**Prerequisites:**
+- Place your dataset in `WMS/data/training/`:
+  - Images: `WMS/data/training/images/*.jpg`
+  - Masks: `WMS/data/training/masks/*.jpg`
+
+**1. Prepare Dataset (optional)**
 ```bash
 python WMS/src/prepareDataset.py
 ```
-This script splits the data into train/val/test sets.
-It does not need to be run separately, as WMS/src/train.py runs it automatically before training.
+- Splits data into train/val/test sets (80%/10%/10%)
+- Creates temporary directories in `WMS/data/training/temp/`
+- **Not required** - `train.py` runs this automatically
 
-### 2. Train Model
+**2. Train Model**
 ```bash
 python WMS/src/train.py
 ```
-Trains the U-Net model and saves checkpoints to `models/`.
+- Automatically runs `prepareDataset.py` first
+- Trains U-Net for 50 epochs with early stopping
+- Saves checkpoints to `WMS/models/`:
+  - `best.pth` - Best model based on validation loss
+  - `unet_epoch{N}.pth` - Checkpoint for each epoch
+- Evaluates on train/val/test sets each epoch
+- Displays training plots and sample predictions
 
-### 3. Run Inference
+### Inference Workflow
+
+**Prerequisites:**
+- A trained model: `WMS/models/best.pth`
+- Input images: Place JPG files in `WMS/data/predictions/photos_to_predict/`
+
+**Run Predictions**
 ```bash
-python WMS\src\predicts.py
+python WMS/src/predicts.py
 ```
-Runs predictions on test images or custom images.
+- Loads the best trained model
+- Processes all `.jpg` files in `photos_to_predict/`
+- Displays side-by-side comparisons (original | predicted mask)
+- Saves predicted masks to `WMS/data/predictions/predicted_masks/`
+- **No training required** - works with pre-trained models from GitHub
 
 ## Authors
 
