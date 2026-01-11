@@ -56,7 +56,7 @@ cover/
 *.pot
 
 # Django stuff:
-*.log
+# *.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -168,9 +168,12 @@ cython_debug/
 .idea/
 
 # Generated data splits (created by prepareDataset.py)
-WMS/data/train/
-WMS/data/test/
-WMS/data/val/
+WMS/data/training/temp/train/
+WMS/data/training/temp/test/
+WMS/data/training/temp/val/
+
+# Generated prediction outputs (created by predicts.py)
+WMS/data/predictions/predicted_masks/
 
 # Ruff stuff:
 .ruff_cache/
