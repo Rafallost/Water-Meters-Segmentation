@@ -17,8 +17,8 @@ random.seed(42)
 
 # Source data directories
 datasetPath = os.path.dirname(os.path.abspath(__file__))
-sourceImageDir = os.path.join(datasetPath, '..', 'data', 'images')
-sourceMaskDir  = os.path.join(datasetPath, '..', 'data', 'masks')
+sourceImageDir = os.path.join(datasetPath, '..', 'data', 'training', 'images')
+sourceMaskDir  = os.path.join(datasetPath, '..', 'data', 'training', 'masks')
 
 # Get images and masks names
 imageFiles = sorted([f for f in os.listdir(sourceImageDir) if f.endswith('.jpg')])
@@ -32,7 +32,7 @@ valImgs, testImgs = train_test_split(tempImgs, test_size=0.5, random_state=42)
 splits = {'train': trainImgs, 'val': valImgs, 'test': testImgs}
 
 # Folders creation
-baseDataDir = os.path.join(datasetPath, '..', 'data')
+baseDataDir = os.path.join(datasetPath, '..', 'data', 'training', 'temp')
 for split, files in splits.items():
     for subfolder in ['images', 'masks']:
         os.makedirs(os.path.join(baseDataDir, split, subfolder), exist_ok=True)

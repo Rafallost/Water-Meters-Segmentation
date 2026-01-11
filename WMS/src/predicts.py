@@ -1,26 +1,17 @@
 import torch
 import matplotlib.pyplot as plt
-from torch.utils.data import DataLoader
 from model import WaterMetersUNet
-from dataset import WMSDataset
 from transforms import imageTransforms
 import cv2
 import os
 
-# Preparing dataloader
+# Preparing paths for custom predictions
 baseDataDir = os.path.join(os.path.dirname(__file__), '..', 'data')
 
-img_dir = os.path.join(baseDataDir, 'test', 'images')
-mask_dir = os.path.join(baseDataDir, 'test', 'masks')
-testImgs = sorted([os.path.join(img_dir, f) for f in os.listdir(img_dir) if f.endswith('.jpg')])
-testMasks  = sorted([os.path.join(mask_dir, f) for f in os.listdir(mask_dir) if f.endswith('.jpg')])
-
-custom_dir = os.path.join(baseDataDir, 'custom_images')
-save_dir   = os.path.join(baseDataDir, 'custom_predictions')
+# Custom predictions from predictions directory
+custom_dir = os.path.join(baseDataDir, 'predictions', 'photos_to_predict')
+save_dir   = os.path.join(baseDataDir, 'predictions', 'predicted_masks')
 os.makedirs(save_dir, exist_ok=True)
-
-testDataset = WMSDataset(testImgs, testMasks, imageTransforms)
-testLoader  = DataLoader(testDataset, batch_size=16, shuffle=False)
 
 # Loading model and weight
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -57,35 +48,7 @@ for fname in os.listdir(custom_dir):
     plt.suptitle(fname)
     plt.show()
 
-    # 5) (optional) save the mask
+    # 5) Save the predicted mask
     cv2.imwrite(os.path.join(save_dir, f"mask_{fname}"), predM)
 
-# N = number of samples
-N = 0
-collected = 0
-with torch.no_grad():
-    for images, masks in testLoader:
-        images = images.to(device)
-        probs  = torch.sigmoid(model(images))
-        preds  = (probs > 0.5).float().cpu().numpy()
-        imgs_np = images.cpu().permute(0,2,3,1).numpy()
-        masks_np = masks.cpu().squeeze(1).numpy()
-
-        B = images.shape[0]
-        for i in range(B):
-            if collected >= N:
-                break
-            fig, axes = plt.subplots(1,3, figsize=(12,4))
-            axes[0].imshow(imgs_np[i])
-            axes[0].set_title('Image')
-            axes[0].axis('off')
-            axes[1].imshow(masks_np[i], cmap='gray')
-            axes[1].set_title('GT Mask')
-            axes[1].axis('off')
-            axes[2].imshow(preds[i].squeeze(), cmap='gray')
-            axes[2].set_title('Predicted Mask')
-            axes[2].axis('off')
-            plt.show()
-            collected += 1
-        if collected >= N:
-            break
+print(f"Predictions complete! Masks saved to: {save_dir}")

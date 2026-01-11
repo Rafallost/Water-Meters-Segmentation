@@ -66,7 +66,7 @@ prepare_script = os.path.join(os.path.dirname(__file__), 'prepareDataset.py')
 subprocess.run([sys.executable, prepare_script], check=True)
 
 # Load data
-baseDataDir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data')
+baseDataDir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'training', 'temp')
 # Utility to gather paths
 def gather_paths(split):
     img_dir = os.path.join(baseDataDir, split, 'images')
